@@ -53,7 +53,11 @@ const navItems = [
 ];
 
 const Index = () => {
+  const [focusTask, setFocusTask] = useState<typeof tasks[number] | null>(null);
+
   return (
+    <div className="min-h-screen bg-background p-4">
+      <FocusModal task={focusTask} onClose={() => setFocusTask(null)} />
     <div className="min-h-screen bg-background p-4">
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1400px] overflow-hidden rounded-2xl bg-card shadow-lg">
         {/* Sidebar */}
