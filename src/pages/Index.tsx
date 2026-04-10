@@ -138,7 +138,7 @@ const Index = () => {
                 Human Tasks
               </Badge>
 
-              <div className="mb-4 rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[0])} className="mb-4 cursor-pointer rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">Weekly Strategy Sync</h3>
