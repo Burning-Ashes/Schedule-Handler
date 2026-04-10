@@ -13,11 +13,37 @@ import {
   PenSquare,
   AlertTriangle,
 } from "lucide-react";
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import FocusModal from "@/components/FocusModal";
+
+const tasks = [
+  {
+    id: "strategy",
+    title: "Weekly Strategy Sync",
+    description: "Human-to-human collaboration on Q4 planning. Review team alignment, discuss resource allocation, and finalize the roadmap for the upcoming sprint cycle.",
+    time: "10:30 AM",
+    priority: "High Priority",
+  },
+  {
+    id: "architecture",
+    title: "Deep Work: Architecture Design",
+    description: "Refining the persistent data layer architecture. Analyze the current schema, identify bottlenecks, and propose a scalable solution for the sanctuary's resource allocation.",
+    time: "2:00 PM",
+    priority: "High Priority",
+  },
+  {
+    id: "api",
+    title: "API Integration Failure",
+    description: "Script 'Alpha' encountered unexpected 403 error. Investigate authentication token expiry, review API gateway logs, and implement a retry mechanism with exponential backoff.",
+    time: "ASAP",
+    priority: "Critical",
+  },
+];
 
 const navItems = [
   { label: "Today", icon: Calendar, active: true },
@@ -27,8 +53,11 @@ const navItems = [
 ];
 
 const Index = () => {
+  const [focusTask, setFocusTask] = useState<typeof tasks[number] | null>(null);
+
   return (
     <div className="min-h-screen bg-background p-4">
+      <FocusModal task={focusTask} onClose={() => setFocusTask(null)} />
       <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[1400px] overflow-hidden rounded-2xl bg-card shadow-lg">
         {/* Sidebar */}
         <aside className="flex w-52 flex-col border-r border-border bg-sidebar p-5">
@@ -109,7 +138,7 @@ const Index = () => {
                 Human Tasks
               </Badge>
 
-              <div className="mb-4 rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[0])} className="mb-4 cursor-pointer rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">Weekly Strategy Sync</h3>
@@ -127,7 +156,7 @@ const Index = () => {
                 </div>
               </div>
 
-              <div className="mb-6 rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[1])} className="mb-6 cursor-pointer rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">Deep Work: Architecture Design</h3>
@@ -148,7 +177,7 @@ const Index = () => {
                 Automation Review
               </Badge>
 
-              <div className="rounded-xl border-l-4 border-l-destructive bg-[hsl(0_72%_60%/0.06)] p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[2])} className="cursor-pointer rounded-xl border-l-4 border-l-destructive bg-[hsl(0_72%_60%/0.06)] p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">API Integration Failure</h3>
