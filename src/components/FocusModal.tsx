@@ -1,19 +1,22 @@
 import { X, Clock, Flag, CheckCircle2, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface Task {
+export interface Task {
+  id: string;
   title: string;
   description: string;
-  time: string;
-  priority: string;
+  time_estimate_mins: number;
+  urgency_score: number;
+  type: string;
 }
 
 interface FocusModalProps {
   task: Task | null;
   onClose: () => void;
+  onComplete: (taskId: string) => void;
 }
 
-const FocusModal = ({ task, onClose }: FocusModalProps) => {
+const FocusModal = ({ task, onClose, onComplete }: FocusModalProps) => {
   if (!task) return null;
 
   return (
@@ -67,16 +70,18 @@ const FocusModal = ({ task, onClose }: FocusModalProps) => {
           <div className="mb-8 flex items-center gap-5">
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Clock size={14} />
-              45 Minutes Remaining
+              {task.time_estimate_mins} Minutes Remaining
             </span>
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Flag size={14} />
-              {task.priority}
+              Priority Score: {task.urgency_score}
             </span>
           </div>
 
           {/* Actions */}
-          <Button className="mb-3 w-full gap-2 rounded-xl bg-foreground py-6 text-sm font-semibold text-card hover:bg-foreground/90">
+          <Button 
+            onClick={() => onComplete(task.id)}
+            className="mb-3 w-full gap-2 rounded-xl bg-foreground py-6 text-sm font-semibold text-card hover:bg-foreground/90">
             <CheckCircle2 size={16} />
             Mark Complete
           </Button>
