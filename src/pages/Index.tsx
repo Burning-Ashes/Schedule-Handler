@@ -156,7 +156,7 @@ const Index = () => {
                 </div>
               </div>
 
-              <div className="mb-6 rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[1])} className="mb-6 cursor-pointer rounded-xl border-l-4 border-l-primary bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">Deep Work: Architecture Design</h3>
@@ -177,7 +177,7 @@ const Index = () => {
                 Automation Review
               </Badge>
 
-              <div className="rounded-xl border-l-4 border-l-destructive bg-[hsl(0_72%_60%/0.06)] p-4 shadow-sm">
+              <div onClick={() => setFocusTask(tasks[2])} className="cursor-pointer rounded-xl border-l-4 border-l-destructive bg-[hsl(0_72%_60%/0.06)] p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground">API Integration Failure</h3>
