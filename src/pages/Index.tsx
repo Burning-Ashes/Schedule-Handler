@@ -13,11 +13,37 @@ import {
   PenSquare,
   AlertTriangle,
 } from "lucide-react";
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import FocusModal from "@/components/FocusModal";
+
+const tasks = [
+  {
+    id: "strategy",
+    title: "Weekly Strategy Sync",
+    description: "Human-to-human collaboration on Q4 planning. Review team alignment, discuss resource allocation, and finalize the roadmap for the upcoming sprint cycle.",
+    time: "10:30 AM",
+    priority: "High Priority",
+  },
+  {
+    id: "architecture",
+    title: "Deep Work: Architecture Design",
+    description: "Refining the persistent data layer architecture. Analyze the current schema, identify bottlenecks, and propose a scalable solution for the sanctuary's resource allocation.",
+    time: "2:00 PM",
+    priority: "High Priority",
+  },
+  {
+    id: "api",
+    title: "API Integration Failure",
+    description: "Script 'Alpha' encountered unexpected 403 error. Investigate authentication token expiry, review API gateway logs, and implement a retry mechanism with exponential backoff.",
+    time: "ASAP",
+    priority: "Critical",
+  },
+];
 
 const navItems = [
   { label: "Today", icon: Calendar, active: true },
