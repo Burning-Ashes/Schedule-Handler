@@ -201,22 +201,12 @@ const Index = () => {
             {/* Right column */}
             <div className="w-80 shrink-0">
               <div className="rounded-xl bg-card p-6 shadow-sm">
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-foreground">Progress Made</h3>
-                    <p className="text-sm text-muted-foreground">Tasks completed today</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-3xl font-bold text-foreground">65%</span>
-                    <p className="text-xs font-semibold uppercase text-primary">Steady Flow</p>
-                  </div>
+                <h3 className="mb-1 text-lg font-bold text-foreground">Progress Made</h3>
+                <p className="mb-4 text-sm text-muted-foreground">Tasks completed today</p>
+                <div className="flex justify-center">
+                  <PotionBottle value={65} />
                 </div>
-
-                <Progress value={65} className="mb-2 h-3 rounded-full bg-secondary [&>div]:bg-primary" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>0%</span>
-                  <span>100%</span>
-                </div>
+                <p className="mt-2 text-center text-xs font-semibold uppercase text-primary">Steady Flow</p>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-4">
