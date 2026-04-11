@@ -116,8 +116,10 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
   const [dbError, setDbError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
 
+  const BASE = API_BASE.replace(/\/+$/, "");
+
   useEffect(() => {
-    fetch(`${API_BASE}/auth/gmail/status`)
+    fetch(`${BASE}/auth/gmail/status`)
       .then(res => {
         if (!res.ok) throw new Error("Backend reachable but returned error");
         return res.json();
@@ -141,7 +143,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
 
   const handleDisconnect = async () => {
     try {
-      await fetch(`${API_BASE}/auth/gmail/disconnect`, { method: "POST" });
+      await fetch(`${BASE}/auth/gmail/disconnect`, { method: "POST" });
       setConnectedEmail(null);
     } catch (error) {
       console.error(error);
@@ -230,7 +232,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
                     size="sm" 
                     className="flex-1 text-xs h-8 bg-secondary/30 hover:bg-secondary/50"
                     onClick={() => {
-                      window.location.href = `${API_BASE}/auth/gmail`;
+                      window.location.href = `${BASE}/auth/gmail`;
                     }}
                   >
                     <RefreshCcw className="w-3.5 h-3.5 mr-2" />
@@ -260,7 +262,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
                 <Button 
                   className="w-full bg-primary text-primary-foreground hover:opacity-90 font-semibold"
                   onClick={() => {
-                    window.location.href = `${API_BASE}/auth/gmail`;
+                    window.location.href = `${BASE}/auth/gmail`;
                   }}
                 >
                   <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="Google" className="w-4 h-4 mr-2" />
@@ -272,7 +274,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
 
           {/* SECTION 2: Filter Rules */}
           <section className="space-y-4">
-            <div className="space-y-1">
+            <div className="space-y-1 text-center">
               <h3 className="text-sm font-semibold tracking-wide text-foreground uppercase border-b border-border pb-2 mb-4">
                 Routing Rules
               </h3>
@@ -308,15 +310,15 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
             <div className="flex flex-col gap-1 text-[10px] font-mono text-muted-foreground bg-secondary/20 p-2 rounded">
               <div className="flex justify-between">
                 <span>API Endpoint:</span>
-                <span className="text-foreground truncate ml-4" title={API_BASE}>{API_BASE}</span>
+                <span className="text-foreground truncate ml-4" title={BASE}>{BASE}</span>
               </div>
               <div className="flex justify-between">
                 <span>Database:</span>
                 <span className={dbStatus === "ok" ? "text-emerald-500" : "text-destructive"}>{dbStatus.toUpperCase()}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Environment:</span>
-                <span>{process.env.VERCEL ? "Vercel" : "Development"}</span>
+              <div className="flex justify-between text-[8px] opacity-50 mt-1 italic">
+                <span>Original ENV:</span>
+                <span className="truncate ml-2">{API_BASE}</span>
               </div>
             </div>
           </section>
