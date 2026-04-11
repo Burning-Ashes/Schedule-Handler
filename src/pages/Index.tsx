@@ -104,7 +104,10 @@ const Index = () => {
     .filter((t) => t.type === "spam")
     .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
 
-  const progressPercentage = Math.max(0, Math.min(100, 100 - tasks.length * 10));
+  const totalTasksCount = tasks.length + completedTasks.length;
+  const activeTasksCount = tasks.length;
+  const progressPercentage = totalTasksCount === 0 ? 0 : (activeTasksCount / totalTasksCount) * 100;
+  
   const totalFocusMins = tasks.reduce((acc, t) => acc + (t.time_estimate_mins || 0), 0);
   const hours = Math.floor(totalFocusMins / 60);
   const mins = totalFocusMins % 60;
@@ -353,12 +356,12 @@ const Index = () => {
             {/* Right column */}
             <div className="w-80 shrink-0">
               <div className="rounded-xl bg-card p-6 shadow-sm">
-                <h3 className="mb-1 text-lg font-bold text-foreground">Progress Made</h3>
-                <p className="mb-4 text-sm text-muted-foreground">Tasks completed today</p>
+                <h3 className="mb-1 text-lg font-bold text-foreground">Task Load</h3>
+                <p className="mb-4 text-sm text-muted-foreground">Active vs Total Tasks</p>
                 <div className="flex justify-center">
-                  <PotionBottle value={progressPercentage} />
+                  <PotionBottle value={progressPercentage} label={`${activeTasksCount}/${totalTasksCount}`} />
                 </div>
-                <p className="mt-2 text-center text-xs font-semibold uppercase text-primary">Steady Flow</p>
+                <p className="mt-2 text-center text-xs font-semibold uppercase text-primary">Tasks Remaining</p>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-4">

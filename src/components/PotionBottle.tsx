@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 
 interface PotionBottleProps {
   value: number; // 0-100
+  label: string; // Text to display on the bottle (e.g. "3/7")
 }
 
-const PotionBottle = ({ value }: PotionBottleProps) => {
+const PotionBottle = ({ value, label }: PotionBottleProps) => {
   const [animatedValue, setAnimatedValue] = useState(0);
 
   useEffect(() => {
@@ -166,7 +167,7 @@ const PotionBottle = ({ value }: PotionBottleProps) => {
           fill="#4A2511"
           fontFamily="system-ui, sans-serif"
         >
-          {animatedValue}%
+          {label}
         </text>
       </svg>
     </div>

@@ -28,6 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from gmail_routes import router as gmail_router
+app.include_router(gmail_router)
+
 # ── Schema ────────────────────────────────────────────────────────────────────
 class EmailPayload(BaseModel):
     subject: str
