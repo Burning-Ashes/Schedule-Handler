@@ -20,9 +20,13 @@ supabase: Client = create_client(
 
 app = FastAPI(title="Zen-Mode Task Orchestrator")
 
+# Explicitly handle FRONTEND_URL to avoid allow_origins=["*"] conflict with allow_credentials=True
+frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+allowed_origins = [frontend_url, "http://localhost:5173", "http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
