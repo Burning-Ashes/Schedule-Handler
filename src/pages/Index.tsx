@@ -5,7 +5,6 @@ import {
   Bot,
   Plus,
   Search,
-  Bell,
   Settings,
   Clock,
   CheckCircle2,
@@ -14,14 +13,21 @@ import {
   Loader2,
   CheckCheck,
   ShieldOff,
+  Moon,
+  Sun,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw
 } from "lucide-react";
 import { useState } from "react";
+import { useTheme } from "@/components/theme-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import FocusModal, { Task } from "@/components/FocusModal";
 import PotionBottle from "@/components/PotionBottle";
+import SettingsOverlay from "@/components/SettingsOverlay";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const NAV_ITEMS = [
@@ -62,9 +68,19 @@ const reopenTask = async (taskId: string) => {
   return res.json();
 };
 
+const syncEmails = async () => {
+  const res = await fetch("http://localhost:8000/auth/gmail/sync-emails", {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to sync emails");
+  return res.json();
+};
+
 const Index = () => {
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   const [activeTab, setActiveTab] = useState("today");
+  const [showCompleted, setShowCompleted] = useState(false);
+  const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
 
   const { data: tasks = [], isLoading } = useQuery({
@@ -91,6 +107,13 @@ const Index = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["completedTasks"] });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: syncEmails,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 
@@ -154,16 +177,6 @@ const Index = () => {
             )})}
           </nav>
 
-          <div className="mt-auto flex items-center gap-3 pt-4">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">AR</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-sm font-semibold text-sidebar-foreground">Alex Rivera</p>
-              <p className="text-xs text-muted-foreground">Deep Work Mode</p>
-            </div>
-          </div>
         </aside>
 
         {/* Main area */}
@@ -171,20 +184,29 @@ const Index = () => {
           {/* Top Bar */}
           <header className="flex items-center gap-4 border-b border-border px-8 py-4">
             <h1 className="text-xl font-bold text-foreground">Zen Scheduler</h1>
-            <div className="relative ml-4 w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <Input
-                placeholder="Search task sanctuary..."
-                className="h-9 rounded-full border-border bg-secondary pl-9 text-sm"
-              />
-            </div>
             <div className="ml-auto flex items-center gap-3">
-              <button className="rounded-full p-2 text-muted-foreground hover:bg-secondary">
-                <Bell size={20} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                className="gap-2"
+              >
+                {syncMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+                {syncMutation.isPending ? "Syncing..." : "Refresh Emails"}
+              </Button>
+              <button 
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                title="Toggle Dark Mode"
+              >
+                {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
               </button>
-              <button className="rounded-full p-2 text-muted-foreground hover:bg-secondary">
-                <Settings size={20} />
-              </button>
+              <SettingsOverlay>
+                <button className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors">
+                  <Settings size={20} />
+                </button>
+              </SettingsOverlay>
             </div>
           </header>
 
@@ -278,47 +300,58 @@ const Index = () => {
 
               {/* Completed Tasks */}
               {(activeTab === "today") && (
-                <>
-                  <Badge className="mb-3 mt-4 rounded-md bg-emerald-600 px-3 py-1 text-xs font-bold uppercase text-white hover:bg-emerald-600/90">
-                    Completed
-                  </Badge>
+                <div className="mt-8">
+                  <button 
+                    onClick={() => setShowCompleted(!showCompleted)}
+                    className="flex items-center gap-2 mb-3 text-sm font-bold uppercase text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
+                  >
+                    <span>Completed Tasks</span>
+                    {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <Badge className="ml-2 rounded-md bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border-none px-2 py-0.5">
+                      {completedTasks.length}
+                    </Badge>
+                  </button>
 
-                  {isLoadingCompleted && <Loader2 className="animate-spin text-emerald-500 my-4" />}
-                  {!isLoadingCompleted && completedTasks.length === 0 && (
-                    <p className="text-sm text-muted-foreground mb-6">No completed tasks yet. Get to work!</p>
-                  )}
+                  {showCompleted && (
+                    <div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+                      {isLoadingCompleted && <Loader2 className="animate-spin text-emerald-500 my-4" />}
+                      {!isLoadingCompleted && completedTasks.length === 0 && (
+                        <p className="text-sm text-muted-foreground mb-6">No completed tasks yet. Get to work!</p>
+                      )}
 
-                  {completedTasks.map((task) => (
-                    <div key={task.id} className="mb-4 rounded-xl border-l-4 border-l-emerald-500 bg-emerald-500/5 p-4 shadow-sm opacity-70">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-bold text-muted-foreground line-through">{task.title}</h3>
-                          <p className="mt-0.5 text-sm text-muted-foreground/70 line-clamp-1">{task.description}</p>
+                      {completedTasks.map((task) => (
+                        <div key={task.id} className="rounded-xl border-l-4 border-l-emerald-500 bg-emerald-500/5 p-4 shadow-sm opacity-70 transition-opacity hover:opacity-100">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="font-bold text-muted-foreground line-through">{task.title}</h3>
+                              <p className="mt-0.5 text-sm text-muted-foreground/70 line-clamp-1">{task.description}</p>
+                            </div>
+                            <CheckCheck size={20} className="text-emerald-500 shrink-0 ml-2" />
+                          </div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
+                                <Clock size={13} /> {task.time_estimate_mins} mins
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-emerald-500 font-semibold">
+                                <CheckCircle2 size={13} /> Done
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => reopenMutation.mutate(task.id)}
+                              disabled={reopenMutation.isPending}
+                              className="h-7 rounded-md border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                            >
+                              Reopen
+                            </Button>
+                          </div>
                         </div>
-                        <CheckCheck size={20} className="text-emerald-500 shrink-0 ml-2" />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
-                            <Clock size={13} /> {task.time_estimate_mins} mins
-                          </span>
-                          <span className="flex items-center gap-1 text-xs text-emerald-500 font-semibold">
-                            <CheckCircle2 size={13} /> Done
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => reopenMutation.mutate(task.id)}
-                          disabled={reopenMutation.isPending}
-                          className="h-7 rounded-md border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary"
-                        >
-                          Reopen
-                        </Button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </>
+                  )}
+                </div>
               )}
 
               {/* Spam Tasks */}

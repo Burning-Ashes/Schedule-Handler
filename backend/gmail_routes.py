@@ -1,12 +1,28 @@
 import os
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 import json
 import time
+import requests
+import base64
+from email.message import EmailMessage
+from pydantic import BaseModel
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse
 import google_auth_oauthlib.flow
-from gmail_scraper import start_gmail_polling, stop_gmail_polling, TOKENS_FILE
+from googleapiclient.discovery import build
+from gmail_scraper import start_gmail_polling, stop_gmail_polling, TOKENS_FILE, get_credentials, fetch_and_process_emails
 
 router = APIRouter(prefix="/auth/gmail")
+
+class SendEmailRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+
+class RulesRequest(BaseModel):
+    spammer: list[str] = []
+    always: list[str] = []
+    never: list[str] = []
 
 CLIENT_SECRETS = {
     "web": {
@@ -20,7 +36,11 @@ CLIENT_SECRETS = {
     }
 }
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/gmail.send" # Need send scope to reply to emails
+]
 
 AUTH_FLOWS = {}
 
@@ -63,12 +83,15 @@ async def auth_gmail_callback(request: Request):
     AUTH_FLOWS.pop(state, None)
     credentials = flow.credentials
     
-    # We should normally detect the user_email from the token info,
-    # but we'll use a default hardcoded key "default_user" for this MVP 
-    # to support a single user since no other user context is provided.
-    user_email = "default_user@gmail.com" 
+    # Fetch actual user profile email using googleapiclient for robustness
+    try:
+        oauth2_client = build('oauth2', 'v2', credentials=credentials)
+        user_info = oauth2_client.userinfo().get().execute()
+        user_email = user_info.get("email", "default_user@gmail.com")
+    except Exception as e:
+        print(f"Error fetching user email: {e}")
+        user_email = "default_user@gmail.com"
     
-    # Alternatively get profile from people API, but since schema allows simple keys:
     # Save tokens
     if os.path.exists(TOKENS_FILE):
         with open(TOKENS_FILE, "r") as f:
@@ -88,20 +111,98 @@ async def auth_gmail_callback(request: Request):
     # Start polling
     start_gmail_polling(user_email)
     
-    return {"status": "success", "message": "Gmail connected and polling started."}
+    # Redirect back to the frontend
+    return RedirectResponse("http://localhost:8080/?connected=true")
+
+@router.get("/status")
+async def auth_gmail_status():
+    if os.path.exists(TOKENS_FILE):
+        with open(TOKENS_FILE, "r") as f:
+            try:
+                data = json.load(f)
+                if data:
+                    user_email = list(data.keys())[-1]
+                    return {"connected": True, "email": user_email}
+            except json.JSONDecodeError:
+                pass
+    return {"connected": False, "email": None}
 
 @router.post("/disconnect")
 async def auth_gmail_disconnect():
-    user_email = "default_user@gmail.com"
-    stop_gmail_polling(user_email)
-    
     if os.path.exists(TOKENS_FILE):
         with open(TOKENS_FILE, "r") as f:
-            data = json.load(f)
-        if user_email in data:
-            del data[user_email]
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+                
+        for user_email in data.keys():
+            stop_gmail_polling(user_email)
             
         with open(TOKENS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            json.dump({}, f, indent=2)
             
-    return {"status": "success", "message": "Gmail disconnected and polling stopped."}
+    return {"status": "success", "message": "Gmail disconnected."}
+
+@router.post("/send-email")
+async def send_email(req: SendEmailRequest):
+    if not os.path.exists(TOKENS_FILE):
+        raise HTTPException(status_code=400, detail="No Gmail account connected.")
+    with open(TOKENS_FILE, "r") as f:
+        data = json.load(f)
+    if not data:
+        raise HTTPException(status_code=400, detail="No Gmail account connected.")
+    user_email = list(data.keys())[-1]
+    
+    creds = get_credentials(user_email)
+    if not creds:
+        raise HTTPException(status_code=401, detail="Invalid credentials. Please reconnect.")
+        
+    try:
+        service = build("gmail", "v1", credentials=creds)
+        msg = EmailMessage()
+        msg.set_content(req.body)
+        msg["To"] = req.to
+        msg["Subject"] = req.subject
+        
+        encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": encoded}).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sync-emails")
+async def sync_emails():
+    if not os.path.exists(TOKENS_FILE):
+        return {"status": "success", "emails_processed": 0}
+    with open(TOKENS_FILE, "r") as f:
+        data = json.load(f)
+    if not data:
+        return {"status": "success", "emails_processed": 0}
+        
+    user_email = list(data.keys())[-1]
+    
+    try:
+        count = fetch_and_process_emails(user_email, manual_run=True)
+        return {"status": "success", "emails_processed": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/rules")
+async def get_rules():
+    rules_file = "rules.json"
+    if os.path.exists(rules_file):
+        with open(rules_file, "r") as f:
+            try:
+                return json.load(f)
+            except:
+                pass
+    return {"spammer": [], "always": [], "never": []}
+
+@router.post("/rules")
+async def save_rules(req: RulesRequest):
+    rules_file = "rules.json"
+    data = {"spammer": req.spammer, "always": req.always, "never": req.never}
+    with open(rules_file, "w") as f:
+        json.dump(data, f, indent=2)
+    return {"status": "success"}
