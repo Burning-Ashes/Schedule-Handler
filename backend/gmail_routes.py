@@ -47,7 +47,17 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
-AUTH_FLOWS = {}
+# Fallback in-memory store for local dev (serverless uses Supabase)
+_LOCAL_STATES: dict = {}
+
+def _get_supabase():
+    """Lazily create a Supabase client if env vars are set."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        return None
+    from supabase import create_client
+    return create_client(url, key)
 
 def _get_flow():
     if not os.environ.get("GOOGLE_CLIENT_ID") or not os.environ.get("GOOGLE_CLIENT_SECRET"):
@@ -60,14 +70,41 @@ def _get_flow():
     flow.redirect_uri = f"{BACKEND_URL}/auth/gmail/callback"
     return flow
 
-def _get_supabase():
-    """Lazily create a Supabase client if env vars are set."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        return None
-    from supabase import create_client
-    return create_client(url, key)
+def _save_oauth_state(state: str):
+    """Persist OAuth state so it survives across serverless invocations."""
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            supabase.table("oauth_states").upsert(
+                {"state": state, "created_at": int(time.time())}
+            ).execute()
+            return
+        except Exception as e:
+            print(f"Supabase state save error: {e}")
+    # Local dev fallback
+    _LOCAL_STATES[state] = int(time.time())
+
+def _verify_and_consume_oauth_state(state: str) -> bool:
+    """Return True if state is valid (exists and < 10 min old), then delete it."""
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            result = supabase.table("oauth_states").select("created_at").eq("state", state).limit(1).execute()
+            if not result.data:
+                return False
+            created_at = result.data[0].get("created_at", 0)
+            if int(time.time()) - created_at > 600:  # 10 min TTL
+                supabase.table("oauth_states").delete().eq("state", state).execute()
+                return False
+            supabase.table("oauth_states").delete().eq("state", state).execute()
+            return True
+        except Exception as e:
+            print(f"Supabase state verify error: {e}")
+    # Local dev fallback
+    created_at = _LOCAL_STATES.pop(state, None)
+    if created_at is None:
+        return False
+    return (int(time.time()) - created_at) <= 600
 
 @router.get("")
 async def auth_gmail():
@@ -77,7 +114,7 @@ async def auth_gmail():
         include_granted_scopes="true",
         prompt="consent",
     )
-    AUTH_FLOWS[state] = flow
+    _save_oauth_state(state)
     return RedirectResponse(authorization_url)
 
 @router.get("/callback")
@@ -88,15 +125,16 @@ async def auth_gmail_callback(request: Request):
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing authorization code or state")
 
-    flow = AUTH_FLOWS.get(state)
-    if not flow:
+    # Verify state from Supabase — works across serverless invocations
+    if not _verify_and_consume_oauth_state(state):
         raise HTTPException(
             status_code=400,
             detail="Authentication session expired or invalid. Please try connecting again.",
         )
 
+    # Recreate flow from config (no object needs to persist)
+    flow = _get_flow()
     flow.fetch_token(code=code)
-    AUTH_FLOWS.pop(state, None)
     credentials = flow.credentials
 
     # Fetch the real user email
