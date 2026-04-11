@@ -60,10 +60,24 @@ def _get_supabase():
     from supabase import create_client
     return create_client(url, key)
 
-def _get_flow():
-    if not os.environ.get("GOOGLE_CLIENT_ID") or not os.environ.get("GOOGLE_CLIENT_SECRET"):
-        raise HTTPException(status_code=500, detail="Missing Google OAuth credentials in environment")
+def _verify_env_vars():
+    """Ensure all required environment variables are present."""
+    required = [
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "SUPABASE_URL",
+        "SUPABASE_KEY",
+        "GROQ_API_KEY"
+    ]
+    missing = [v for v in required if not os.environ.get(v)]
+    if missing:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Missing required environment variables: {', '.join(missing)}. Please check your Vercel Dashboard."
+        )
 
+def _get_flow():
+    _verify_env_vars()
     flow = google_auth_oauthlib.flow.Flow.from_client_config(
         _get_client_config(),
         scopes=SCOPES,
@@ -120,68 +134,94 @@ async def auth_gmail():
 
 @router.get("/callback")
 async def auth_gmail_callback(request: Request):
-    code = request.query_params.get("code")
-    state = request.query_params.get("state")
-
-    if not code or not state:
-        raise HTTPException(status_code=400, detail="Missing authorization code or state")
-
-    # Verify state from Supabase — works across serverless invocations
-    if not _verify_and_consume_oauth_state(state):
-        raise HTTPException(
-            status_code=400,
-            detail="Authentication session expired or invalid. Please try connecting again.",
-        )
-
-    # Recreate flow from config (no object needs to persist)
-    flow = _get_flow()
-    flow.fetch_token(code=code)
-    credentials = flow.credentials
-
-    # Fetch the real user email
     try:
-        oauth2_client = build("oauth2", "v2", credentials=credentials)
-        user_info = oauth2_client.userinfo().get().execute()
-        user_email = user_info.get("email", "default_user@gmail.com")
-    except Exception as e:
-        print(f"Error fetching user email: {e}")
-        user_email = "default_user@gmail.com"
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
 
-    token_data = {
-        "access_token": credentials.token,
-        "refresh_token": credentials.refresh_token,
-        "last_checked": int(time.time()),
-    }
+        if not code or not state:
+            raise HTTPException(status_code=400, detail="Missing authorization code or state")
 
-    # ── Persist tokens: Supabase (production) or local file (dev) ─────────────
-    supabase = _get_supabase()
-    if supabase:
+        # 1. Verify state from Supabase — works across serverless invocations
         try:
-            supabase.table("gmail_tokens").upsert(
-                {"email": user_email, **token_data},
-                on_conflict="email",
-            ).execute()
+            is_valid = _verify_and_consume_oauth_state(state)
         except Exception as e:
-            print(f"Supabase token upsert error: {e}")
-    else:
-        # Local file fallback for development
-        data = {}
-        if os.path.exists(TOKENS_FILE):
-            with open(TOKENS_FILE, "r") as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    data = {}
-        data[user_email] = token_data
-        with open(TOKENS_FILE, "w") as f:
-            json.dump(data, f, indent=2)
+            raise HTTPException(status_code=500, detail=f"Database error during state verification: {str(e)}")
 
-    # Only start the background daemon in non-serverless (local) environments
-    if not os.environ.get("VERCEL"):
-        from gmail_scraper import start_gmail_polling
-        start_gmail_polling(user_email)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail="Authentication session expired or invalid. Please try connecting again.",
+            )
 
-    return RedirectResponse(f"{FRONTEND_URL}/?connected=true")
+        # 2. Token exchange
+        try:
+            # Recreate flow from config (no object needs to persist)
+            flow = _get_flow()
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Google token exchange failed: {str(e)}")
+
+        # 3. Fetch user email
+        try:
+            oauth2_client = build("oauth2", "v2", credentials=credentials)
+            user_info = oauth2_client.userinfo().get().execute()
+            user_email = user_info.get("email", "default_user@gmail.com")
+        except Exception as e:
+            print(f"Error fetching user email: {e}")
+            user_email = "default_user@gmail.com"
+
+        token_data = {
+            "access_token": credentials.token,
+            "refresh_token": credentials.refresh_token,
+            "last_checked": int(time.time()),
+        }
+
+        # 4. Persist tokens: Supabase (production) or local file (dev)
+        supabase = _get_supabase()
+        if supabase:
+            try:
+                supabase.table("gmail_tokens").upsert(
+                    {"email": user_email, **token_data},
+                    on_conflict="email",
+                ).execute()
+            except Exception as e:
+                # We don't crash here, just log it. But if it's a critical DB error, maybe we should.
+                print(f"Supabase token upsert error: {e}")
+                # For debugging production: raise it
+                raise HTTPException(status_code=500, detail=f"Failed to save tokens to Supabase: {str(e)}")
+        else:
+            # Local file fallback for development
+            data = {}
+            if os.path.exists(TOKENS_FILE):
+                with open(TOKENS_FILE, "r") as f:
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError:
+                        data = {}
+            data[user_email] = token_data
+            with open(TOKENS_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+
+        # Only start the background daemon in non-serverless (local) environments
+        if not os.environ.get("VERCEL"):
+            from gmail_scraper import start_gmail_polling
+            start_gmail_polling(user_email)
+
+        return RedirectResponse(f"{FRONTEND_URL}/?connected=true")
+
+    except HTTPException as he:
+        # Re-raise HTTP exceptions so FastAPI handles them
+        raise he
+    except Exception as e:
+        # Catch-all for any other unexpected errors
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"CRITICAL OAUTH CALLBACK ERROR:\n{error_details}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unhandled internal error during login: {str(e)}. Check backend logs for full traceback."
+        )
 
 @router.get("/status")
 async def auth_gmail_status():
