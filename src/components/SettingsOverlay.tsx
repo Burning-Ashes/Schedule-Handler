@@ -112,18 +112,31 @@ function FilterSection({
 
 export default function SettingsOverlay({ children }: { children: ReactNode }) {
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<string>("ok");
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/auth/gmail/status`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Backend reachable but returned error");
+        return res.json();
+      })
       .then(data => {
+        setIsOffline(false);
+        setDbStatus(data.database_status);
+        setDbError(data.database_error);
         if (data.connected) {
           setConnectedEmail(data.email);
         } else {
           setConnectedEmail(null);
         }
       })
-      .catch(console.error);
+      .catch(err => {
+        console.error("Connection failed:", err);
+        setIsOffline(true);
+        setConnectedEmail(null);
+      });
   }, []);
 
   const handleDisconnect = async () => {
@@ -152,9 +165,39 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
         </SheetHeader>
 
         <div className="flex flex-col gap-8 py-2">
+          {/* SYSTEM ALERTS */}
+          {isOffline && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <ShieldOff className="w-5 h-5 text-destructive" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-destructive">Backend Offline</p>
+                  <p className="text-xs text-destructive/80 leading-relaxed">
+                    The frontend cannot reach your API at <code className="bg-destructive/10 px-1 rounded">{API_BASE}</code>.
+                    Please check your Vercel environment variables or ensure the backend is running.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {dbStatus === "error" && !isOffline && (
+            <div className="rounded-lg border border-orange-500/50 bg-orange-500/10 p-4">
+              <div className="flex items-center gap-3">
+                <ShieldOff className="w-5 h-5 text-orange-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-orange-600">Database Connection Error</p>
+                  <p className="text-xs text-orange-600/80 leading-relaxed font-mono">
+                    {dbError || "Unable to reach Supabase. Check your URL/KEY keys."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* SECTION 1: Email UI */}
           <section className="space-y-4">
-            <div className="space-y-1">
+            <div className="space-y-1 text-center">
               <h3 className="text-sm font-semibold tracking-wide text-foreground uppercase border-b border-border pb-2 mb-4">
                 Active Account
               </h3>
@@ -256,6 +299,25 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
                 icon={User}
                 colorClass="text-primary"
               />
+            </div>
+          </section>
+
+          {/* DIAGNOSTIC FOOTER */}
+          <section className="mt-auto pt-8 border-t border-border/50 opacity-40 hover:opacity-100 transition-opacity">
+            <p className="text-[10px] font-mono text-muted-foreground mb-1 uppercase tracking-widest text-center">System Diagnostics</p>
+            <div className="flex flex-col gap-1 text-[10px] font-mono text-muted-foreground bg-secondary/20 p-2 rounded">
+              <div className="flex justify-between">
+                <span>API Endpoint:</span>
+                <span className="text-foreground truncate ml-4" title={API_BASE}>{API_BASE}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Database:</span>
+                <span className={dbStatus === "ok" ? "text-emerald-500" : "text-destructive"}>{dbStatus.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Environment:</span>
+                <span>{process.env.VERCEL ? "Vercel" : "Development"}</span>
+              </div>
             </div>
           </section>
         </div>

@@ -232,27 +232,42 @@ async def auth_gmail_callback(request: Request):
 
 @router.get("/status")
 async def auth_gmail_status():
-    # Check Supabase first, fall back to local file
+    """Return Gmail connection status and database health."""
+    status = {
+        "connected": False,
+        "email": None,
+        "database_status": "disconnected",
+        "database_error": None
+    }
+    
+    # Check Supabase
     supabase = _get_supabase()
     if supabase:
         try:
+            # Simple ping to test connectivity
             result = supabase.table("gmail_tokens").select("email").limit(1).execute()
+            status["database_status"] = "ok"
             if result.data:
-                return {"connected": True, "email": result.data[0]["email"]}
+                status["connected"] = True
+                status["email"] = result.data[0]["email"]
         except Exception as e:
+            status["database_status"] = "error"
+            status["database_error"] = str(e)
             print(f"Supabase status check error: {e}")
-    
-    if os.path.exists(TOKENS_FILE):
-        with open(TOKENS_FILE, "r") as f:
+    else:
+        # Check local file fallback (only for local dev)
+        if not os.environ.get("VERCEL") and os.path.exists(TOKENS_FILE):
             try:
-                data = json.load(f)
-                if data:
-                    user_email = list(data.keys())[-1]
-                    return {"connected": True, "email": user_email}
-            except json.JSONDecodeError:
-                pass
+                with open(TOKENS_FILE, "r") as f:
+                    data = json.load(f)
+                    if data:
+                        status["connected"] = True
+                        status["email"] = list(data.keys())[-1]
+                        status["database_status"] = "local"
+            except Exception as e:
+                print(f"Local token file error: {e}")
 
-    return {"connected": False, "email": None}
+    return status
 
 @router.post("/disconnect")
 async def auth_gmail_disconnect():
