@@ -43,6 +43,7 @@ const fetchTasks = async (): Promise<Task[]> => {
   const res = await fetch(`${API_BASE}/tasks`);
   if (!res.ok) throw new Error("Failed to fetch tasks");
   const data = await res.json();
+  console.log("Raw Fetch Tasks:", data.tasks); // Debugging empty list
   return data.tasks || [];
 };
 
@@ -119,13 +120,16 @@ const Index = () => {
   });
 
   const humanTasks = tasks
-    .filter((t) => t.type === "human")
+    .filter((t) => (t.type || "").toLowerCase() === "human")
     .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
   const automationTasks = tasks
-    .filter((t) => t.type === "automation")
+    .filter((t) => (t.type || "").toLowerCase() === "automation")
     .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
   const spamTasks = tasks
-    .filter((t) => t.type === "spam")
+    .filter((t) => (t.type || "").toLowerCase() === "spam")
+    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
+  const uncategorizedTasks = tasks
+    .filter((t) => !["human", "automation", "spam"].includes((t.type || "").toLowerCase()))
     .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
 
   const totalTasksCount = tasks.length + completedTasks.length;
@@ -226,7 +230,7 @@ const Index = () => {
               <p className="mb-6 mt-1 text-sm text-muted-foreground">
                 {activeTab === 'spam'
                   ? `${tasks.filter((t) => t.type === 'spam').length} spam emails filtered`
-                  : `${activeTab === 'human' ? humanTasks.length : activeTab === 'automation' ? automationTasks.length : tasks.length} active threads requiring presence`}
+                  : `${tasks.length} active threads requiring presence`}
               </p>
 
               {/* Human Tasks */}
@@ -293,6 +297,32 @@ const Index = () => {
                           className="h-7 rounded-md bg-destructive px-4 text-xs font-bold uppercase text-destructive-foreground hover:bg-destructive/90">
                           Resolve
                         </Button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Uncategorized Tasks */}
+              {(activeTab === "today" || activeTab === "planned") && uncategorizedTasks.length > 0 && (
+                <>
+                  <Badge className="mb-3 mt-4 rounded-md bg-secondary px-3 py-1 text-xs font-bold uppercase text-secondary-foreground">
+                    Uncategorized
+                  </Badge>
+
+                  {uncategorizedTasks.map((task) => (
+                    <div key={task.id} onClick={() => setFocusTask(task)} className="mb-4 cursor-pointer rounded-xl border-l-4 border-l-muted bg-secondary/20 p-4 shadow-sm transition-shadow hover:shadow-md">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-bold text-foreground">{task.title}</h3>
+                          <p className="mt-0.5 text-sm text-muted-foreground line-clamp-1">{task.description}</p>
+                        </div>
+                        <Search size={20} className="text-muted-foreground shrink-0 ml-2" />
+                      </div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock size={13} /> {task.time_estimate_mins} mins
+                        </span>
                       </div>
                     </div>
                   ))}

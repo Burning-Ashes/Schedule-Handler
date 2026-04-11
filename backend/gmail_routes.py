@@ -15,8 +15,9 @@ from gmail_scraper import stop_gmail_polling, TOKENS_FILE, get_credentials, fetc
 router = APIRouter(prefix="/auth/gmail")
 
 # ── URLs come from env so they work locally AND on Vercel ─────────────────────
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080")
+# Strip trailing slashes to ensure redirect_uri exactly matches Google Console config
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8080").rstrip("/")
 
 class SendEmailRequest(BaseModel):
     to: str
