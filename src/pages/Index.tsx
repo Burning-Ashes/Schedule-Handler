@@ -39,8 +39,10 @@ const NAV_ITEMS = [
   { label: "Spam", id: "spam", icon: ShieldOff },
 ];
 
+const BASE = API_BASE.replace(/\/+$/, "");
+
 const fetchTasks = async (): Promise<Task[]> => {
-  const res = await fetch(`${API_BASE}/tasks`);
+  const res = await fetch(`${BASE}/tasks`);
   if (!res.ok) throw new Error("Failed to fetch tasks");
   const data = await res.json();
   console.log("Raw Fetch Tasks:", data.tasks); // Debugging empty list
@@ -48,14 +50,14 @@ const fetchTasks = async (): Promise<Task[]> => {
 };
 
 const fetchCompletedTasks = async (): Promise<Task[]> => {
-  const res = await fetch(`${API_BASE}/tasks/completed`);
+  const res = await fetch(`${BASE}/tasks/completed`);
   if (!res.ok) throw new Error("Failed to fetch completed tasks");
   const data = await res.json();
   return data.tasks || [];
 };
 
 const completeTask = async (taskId: string) => {
-  const res = await fetch(`${API_BASE}/tasks/${taskId}/complete`, {
+  const res = await fetch(`${BASE}/tasks/${taskId}/complete`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to complete task");
@@ -63,7 +65,7 @@ const completeTask = async (taskId: string) => {
 };
 
 const reopenTask = async (taskId: string) => {
-  const res = await fetch(`${API_BASE}/tasks/${taskId}/reopen`, {
+  const res = await fetch(`${BASE}/tasks/${taskId}/reopen`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to reopen task");
@@ -71,7 +73,7 @@ const reopenTask = async (taskId: string) => {
 };
 
 const syncEmails = async () => {
-  const res = await fetch(`${API_BASE}/auth/gmail/sync-emails`, {
+  const res = await fetch(`${BASE}/auth/gmail/sync-emails`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to sync emails");

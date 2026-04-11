@@ -22,7 +22,20 @@ app = FastAPI(title="Zen-Mode Task Orchestrator")
 
 # Explicitly handle FRONTEND_URL to avoid allow_origins=["*"] conflict with allow_credentials=True
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-allowed_origins = [frontend_url, "http://localhost:5173", "http://localhost:3000"]
+allowed_origins = [
+    frontend_url, 
+    "https://schedule-handler-beryl.vercel.app",  # Fallback for current production origin
+    "http://localhost:5173", 
+    "http://localhost:3000"
+]
+
+@app.middleware("http")
+async def normalize_path_middleware(request, call_next):
+    """Normalize double slashes in paths to prevent 308 redirects which break CORS."""
+    path = request.scope.get("path", "")
+    if "//" in path:
+        request.scope["path"] = path.replace("//", "/")
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
