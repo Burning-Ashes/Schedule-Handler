@@ -85,41 +85,46 @@ def _get_flow():
     flow.redirect_uri = f"{BACKEND_URL}/auth/gmail/callback"
     return flow
 
-def _save_oauth_state(state: str):
+def _save_oauth_state(state: str, code_verifier: str):
     """Persist OAuth state so it survives across serverless invocations."""
     supabase = _get_supabase()
     if supabase:
         try:
             supabase.table("oauth_states").upsert(
-                {"state": state, "created_at": int(time.time())}
+                {"state": state, "code_verifier": code_verifier, "created_at": int(time.time())}
             ).execute()
             return
         except Exception as e:
             print(f"Supabase state save error: {e}")
     # Local dev fallback
-    _LOCAL_STATES[state] = int(time.time())
+    _LOCAL_STATES[state] = {"verifier": code_verifier, "at": int(time.time())}
 
-def _verify_and_consume_oauth_state(state: str) -> bool:
-    """Return True if state is valid (exists and < 10 min old), then delete it."""
+def _verify_and_consume_oauth_state(state: str) -> str:
+    """Return code_verifier if state is valid (exists and < 10 min old), else empty, then delete it."""
     supabase = _get_supabase()
     if supabase:
         try:
-            result = supabase.table("oauth_states").select("created_at").eq("state", state).limit(1).execute()
+            result = supabase.table("oauth_states").select("created_at", "code_verifier").eq("state", state).limit(1).execute()
             if not result.data:
-                return False
-            created_at = result.data[0].get("created_at", 0)
+                return ""
+            row = result.data[0]
+            created_at = row.get("created_at", 0)
+            verifier = row.get("code_verifier", "")
             if int(time.time()) - created_at > 600:  # 10 min TTL
                 supabase.table("oauth_states").delete().eq("state", state).execute()
-                return False
+                return ""
             supabase.table("oauth_states").delete().eq("state", state).execute()
-            return True
+            return verifier
         except Exception as e:
             print(f"Supabase state verify error: {e}")
+            return ""
     # Local dev fallback
-    created_at = _LOCAL_STATES.pop(state, None)
-    if created_at is None:
-        return False
-    return (int(time.time()) - created_at) <= 600
+    data = _LOCAL_STATES.pop(state, None)
+    if data is None:
+        return ""
+    if (int(time.time()) - data["at"]) > 600:
+        return ""
+    return data["verifier"]
 
 @router.get("")
 async def auth_gmail():
@@ -129,7 +134,8 @@ async def auth_gmail():
         include_granted_scopes="true",
         prompt="consent",
     )
-    _save_oauth_state(state)
+    # Important: flow.code_verifier is generated here, we MUST save it
+    _save_oauth_state(state, flow.code_verifier)
     return RedirectResponse(authorization_url)
 
 @router.get("/callback")
@@ -141,13 +147,13 @@ async def auth_gmail_callback(request: Request):
         if not code or not state:
             raise HTTPException(status_code=400, detail="Missing authorization code or state")
 
-        # 1. Verify state from Supabase — works across serverless invocations
+        # 1. Verify state and retrieve PKCE verifier from Supabase
         try:
-            is_valid = _verify_and_consume_oauth_state(state)
+            code_verifier = _verify_and_consume_oauth_state(state)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Database error during state verification: {str(e)}")
 
-        if not is_valid:
+        if not code_verifier:
             raise HTTPException(
                 status_code=400,
                 detail="Authentication session expired or invalid. Please try connecting again.",
@@ -157,7 +163,8 @@ async def auth_gmail_callback(request: Request):
         try:
             # Recreate flow from config (no object needs to persist)
             flow = _get_flow()
-            flow.fetch_token(code=code)
+            # We MUST provide the same verifier saved in Request 1
+            flow.fetch_token(code=code, code_verifier=code_verifier)
             credentials = flow.credentials
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Google token exchange failed: {str(e)}")
