@@ -29,6 +29,7 @@ import FocusModal, { Task } from "@/components/FocusModal";
 import PotionBottle from "@/components/PotionBottle";
 import SettingsOverlay from "@/components/SettingsOverlay";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api";
 
 const NAV_ITEMS = [
   { label: "Today", id: "today", icon: Calendar },
@@ -39,21 +40,21 @@ const NAV_ITEMS = [
 ];
 
 const fetchTasks = async (): Promise<Task[]> => {
-  const res = await fetch("http://localhost:8000/tasks");
+  const res = await fetch(`${API_BASE}/tasks`);
   if (!res.ok) throw new Error("Failed to fetch tasks");
   const data = await res.json();
   return data.tasks || [];
 };
 
 const fetchCompletedTasks = async (): Promise<Task[]> => {
-  const res = await fetch("http://localhost:8000/tasks/completed");
+  const res = await fetch(`${API_BASE}/tasks/completed`);
   if (!res.ok) throw new Error("Failed to fetch completed tasks");
   const data = await res.json();
   return data.tasks || [];
 };
 
 const completeTask = async (taskId: string) => {
-  const res = await fetch(`http://localhost:8000/tasks/${taskId}/complete`, {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/complete`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to complete task");
@@ -61,7 +62,7 @@ const completeTask = async (taskId: string) => {
 };
 
 const reopenTask = async (taskId: string) => {
-  const res = await fetch(`http://localhost:8000/tasks/${taskId}/reopen`, {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/reopen`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to reopen task");
@@ -69,7 +70,7 @@ const reopenTask = async (taskId: string) => {
 };
 
 const syncEmails = async () => {
-  const res = await fetch("http://localhost:8000/auth/gmail/sync-emails", {
+  const res = await fetch(`${API_BASE}/auth/gmail/sync-emails`, {
     method: "POST",
   });
   if (!res.ok) throw new Error("Failed to sync emails");

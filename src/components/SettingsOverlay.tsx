@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api";
 import {
   Sheet,
   SheetContent,
@@ -113,7 +114,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/auth/gmail/status")
+    fetch(`${API_BASE}/auth/gmail/status`)
       .then(res => res.json())
       .then(data => {
         if (data.connected) {
@@ -127,7 +128,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
 
   const handleDisconnect = async () => {
     try {
-      await fetch("http://localhost:8000/auth/gmail/disconnect", { method: "POST" });
+      await fetch(`${API_BASE}/auth/gmail/disconnect`, { method: "POST" });
       setConnectedEmail(null);
     } catch (error) {
       console.error(error);
@@ -186,7 +187,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
                     size="sm" 
                     className="flex-1 text-xs h-8 bg-secondary/30 hover:bg-secondary/50"
                     onClick={() => {
-                      window.location.href = "http://localhost:8000/auth/gmail";
+                      window.location.href = `${API_BASE}/auth/gmail`;
                     }}
                   >
                     <RefreshCcw className="w-3.5 h-3.5 mr-2" />
@@ -216,7 +217,7 @@ export default function SettingsOverlay({ children }: { children: ReactNode }) {
                 <Button 
                   className="w-full bg-primary text-primary-foreground hover:opacity-90 font-semibold"
                   onClick={() => {
-                    window.location.href = "http://localhost:8000/auth/gmail";
+                    window.location.href = `${API_BASE}/auth/gmail`;
                   }}
                 >
                   <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="Google" className="w-4 h-4 mr-2" />
